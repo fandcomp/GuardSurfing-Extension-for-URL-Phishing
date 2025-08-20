@@ -245,6 +245,87 @@ def llm_judge_links(page_url: str, items: List[dict]) -> List[dict]:
         return []
 
 
+def is_punycode_domain(host: str) -> bool:
+    try:
+        if not host:
+            return False
+        return any(lbl.startswith('xn--') for lbl in host.split('.'))
+    except Exception:
+        return False
+
+
+def sld(host: str) -> str:
+    try:
+        parts = host.split('.')
+        if len(parts) >= 2:
+            return parts[-2]
+        return host
+    except Exception:
+        return host or ''
+
+
+def looks_like_brand(s: str, brand: str) -> bool:
+    """Check if string s looks like brand using simple substitutions (0->o, 1->l/i, 3->e, 5->s, 7->t)."""
+    if not s or not brand:
+        return False
+    s0 = s.lower()
+    b0 = brand.lower()
+    subs = str.maketrans({'0':'o','1':'l','3':'e','5':'s','7':'t','!':'i','$':'s','@':'a'})
+    s1 = s0.translate(subs)
+    # Direct match after substitutions or small edit distance
+    if s1 == b0:
+        return True
+    # Levenshtein distance <= 1
+    if abs(len(s1) - len(b0)) > 1:
+        return False
+    # simple distance 0/1 check
+    mism = 0
+    i=j=0
+    while i < len(s1) and j < len(b0):
+        if s1[i] == b0[j]:
+            i+=1; j+=1
+        else:
+            mism += 1
+            if mism > 1:
+                return False
+            # try skip one in either
+            if len(s1) > len(b0):
+                i+=1
+            elif len(b0) > len(s1):
+                j+=1
+            else:
+                i+=1; j+=1
+    if i < len(s1) or j < len(b0):
+        mism += 1
+    return mism <= 1
+
+
+BRAND_KEYWORDS = [
+    'google','facebook','instagram','twitter','x','paypal','apple','microsoft','amazon','bank',
+    'bri','bca','mandiri','bni','dana','ovo','gopay','shopee','tokopedia','bukalapak','tiktok'
+]
+
+
+def classify_category_from_url(u: str) -> Optional[str]:
+    try:
+        parsed = urlparse(u)
+        host = (parsed.netloc or '').lower()
+        path = (parsed.path or '').lower()
+        combo = host + path
+        patterns = [
+            ('crypto-scam', r'crypto(aid|doubler|multiplier)|airdrop|claim-?nft|giveaway-?crypto|elon-?musk'),
+            ('gift-scam', r'free-?gift|free-?iphone|lucky-?draw|spin-?win|congratulations'),
+            ('gaming-freebies', r'free-?robux|free-?uc|free-?diamonds'),
+            ('credential-harvest', r'login-?verify|re-?activate|account-?locked|confirm-?password'),
+        ]
+        for name, rx in patterns:
+            if re.search(rx, combo):
+                return name
+        return None
+    except Exception:
+        return None
+
+
 def human_reasons(feature_names: list, feature_values: list, importances: np.ndarray | None, max_items: int = 2):
     # Simple heuristic explanations focusing on features with suspicious values
     phrases = {
@@ -405,18 +486,18 @@ def analyze_page():
     try:
         data = request.json or {}
         page_url = data.get('page_url') or data.get('url')
-        items = data.get('links', [])  # list of { url, banner?: bool, tag?: str, text?, title?, context? }
+        items = data.get('links', [])
         mode = str(data.get('mode', '')).lower().strip()
         fast = bool(data.get('fast', True))
         top_k_full = int(data.get('top_k_full', 0))
         req_llm = bool(data.get('llm', False))
         llm_max = int(data.get('llm_max', 10))
         llm_only_external = bool(data.get('llm_only_external', False))
+        kids_mode = bool(data.get('kids_mode', False))
 
         if MODEL is None:
             return jsonify({'error': 'Model not loaded'}), 500
 
-        # Deduplicate by URL
         seen = set()
         links = []
         for it in items:
@@ -435,16 +516,15 @@ def analyze_page():
                 'text': it.get('text') or '',
                 'title': it.get('title') or '',
                 'context': it.get('context') or '',
+                'shortener': bool(it.get('shortener', False)),
             })
 
-        # Compute origin domain for external check
         try:
             origin = urlparse(page_url).netloc
         except Exception:
             origin = ''
 
         results = []
-        # First pass: fast features for all links
         for it in links:
             u = it['url']
             fv = compute_fast_features(u) if fast else None
@@ -470,8 +550,6 @@ def analyze_page():
                 ext = urlparse(u).netloc != origin and urlparse(u).netloc != ''
             except Exception:
                 ext = False
-            # Brand/text-domain mismatch heuristic: if text/title/context mentions a different domain than the href host
-            mentioned_host = None
             try:
                 host = urlparse(u).netloc.lower()
             except Exception:
@@ -479,11 +557,12 @@ def analyze_page():
             text_blob = ' '.join(filter(None, [it.get('text') or '', it.get('title') or '', it.get('context') or '']))
             dom_re = re.compile(r"\b([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b", re.I)
             m = dom_re.search(text_blob)
-            if m:
-                mentioned_host = m.group(0).lower()
+            mentioned_host = m.group(0).lower() if m else None
             brand_mismatch = False
             if mentioned_host and host and mentioned_host not in host and host not in mentioned_host:
                 brand_mismatch = True
+            puny = is_punycode_domain(host)
+            cat = classify_category_from_url(u)
 
             results.append({
                 'url': u,
@@ -496,14 +575,14 @@ def analyze_page():
                 'text': it.get('text') or '',
                 'title': it.get('title') or '',
                 'context': it.get('context') or '',
+                'punycode': puny,
+                'category': cat,
                 'brand_mismatch': brand_mismatch,
                 'reasons': reasons,
                 'explanation': { 'top': exp.get('top', []) }
             })
 
-        # Optional second pass with full features for top_k_full highest risk links
         if top_k_full > 0:
-            # Sort by risk descending
             top_idxs = np.argsort([-r['risk'] for r in results])[:top_k_full]
             for idx in top_idxs:
                 try:
@@ -527,9 +606,7 @@ def analyze_page():
                 except Exception:
                     pass
 
-    # Optional LLM judging to re-rank suspicious items by context
         if USE_LLM or req_llm:
-            # Choose top-N candidates by current risk (optionally only external)
             cand_idxs = list(range(len(results)))
             if llm_only_external:
                 cand_idxs = [i for i, r in enumerate(results) if r.get('external')]
@@ -546,7 +623,6 @@ def analyze_page():
                 })
             judged = llm_judge_links(page_url, subset)
             if judged:
-                # judged indices map to cand_idxs positions
                 for j in judged:
                     try:
                         ridx = cand_idxs[int(j.get('idx'))]
@@ -556,17 +632,13 @@ def analyze_page():
                     score = float(j.get('score', 0.0))
                     res['llm_score'] = score
                     res['llm_reason'] = j.get('reason', '')
-                    # Blend risk with llm score (simple max)
                     blended = max(res['risk'] / 100.0, score)
                     res['risk'] = int(round(blended * 100))
 
-        # Heuristic flagging: mark banner/shortener externals above small threshold as flagged
         BANNER_FLAG_MIN = 35
         SHORTENER_FLAG_MIN = 25
         LLM_FLAG_MIN = 0.6
         for r in results:
-            # promote to flagged if heuristics suggest high risk
-            # Apply small risk boost for brand/text-domain mismatch on external links
             try:
                 if r.get('external') and r.get('brand_mismatch'):
                     r['risk'] = min(100, r.get('risk', 0) + 12)
@@ -574,6 +646,31 @@ def analyze_page():
                     if len(rs) < 5:
                         rs.append('Teks/judul menyebut domain lain')
                         r['reasons'] = rs
+                if r.get('punycode'):
+                    r['risk'] = min(100, r.get('risk', 0) + 10)
+                    rs = r.get('reasons') or []
+                    if 'Domain IDN/punycode' not in rs:
+                        rs.append('Domain IDN/punycode')
+                        r['reasons'] = rs
+                txt = ' '.join(filter(None, [r.get('text',''), r.get('title',''), r.get('context','')])).lower()
+                sld_host = sld(urlparse(r.get('url','')).netloc.lower() if r.get('url') else '')
+                for b in BRAND_KEYWORDS:
+                    if b in txt and looks_like_brand(sld_host, b) and b not in sld_host:
+                        r['risk'] = min(100, r.get('risk', 0) + 15)
+                        rs = r.get('reasons') or []
+                        rs.append(f'Domain menyerupai brand “{b}”')
+                        r['reasons'] = rs
+                        break
+                cat = r.get('category')
+                if cat:
+                    boost = 10 if cat in ('gift-scam','gaming-freebies') else 15
+                    r['risk'] = min(100, r.get('risk', 0) + boost)
+                    rs = r.get('reasons') or []
+                    if len(rs) < 5:
+                        rs.append(f'Kategori mencurigakan: {cat}')
+                        r['reasons'] = rs
+                    if kids_mode and r.get('external'):
+                        r['prediction'] = -1
             except Exception:
                 pass
             if r.get('prediction', 1) != -1:
@@ -597,7 +694,7 @@ def analyze_page():
             'analyzed': len(results),
             'flagged': flagged_count,
             'banner_flagged': banner_flagged,
-            'items': results[:100],  # cap response size
+            'items': results[:100],
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
