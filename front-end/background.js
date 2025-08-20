@@ -131,7 +131,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 loadCache();
 
 async function getOptions() {
-  return new Promise((resolve) => chrome.storage.sync.get({ apiBase: '', mode: 'balanced', fastOnSlow: true, allowlist: [], llmEnabled: false, llmModel: 'llama3.1:8b', llmOnlyExternal: false, llmMax: 10 }, resolve));
+  return new Promise((resolve) => chrome.storage.sync.get({ apiBase: '', mode: 'balanced', fastOnSlow: true, allowlist: [], llmEnabled: false, llmModel: 'llama3.1:8b', llmOnlyExternal: false, llmMax: 10, kidsMode: false }, resolve));
 }
 
 async function analyzePageNow(page, links) {
@@ -152,7 +152,7 @@ async function analyzePageNow(page, links) {
     const res = await fetch(`${API}/analyze_page`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page_url: page, links, mode: cfg.mode, fast: true, top_k_full: 3, llm: !!cfg.llmEnabled, llm_max: cfg.llmMax || 10, llm_only_external: !!cfg.llmOnlyExternal })
+      body: JSON.stringify({ page_url: page, links, mode: cfg.mode, fast: true, top_k_full: 3, llm: !!cfg.llmEnabled, llm_max: cfg.llmMax || 10, llm_only_external: !!cfg.llmOnlyExternal, kids_mode: !!cfg.kidsMode })
     });
     const data = await res.json();
     pageScanCache.set(page, { ts: Date.now(), data });

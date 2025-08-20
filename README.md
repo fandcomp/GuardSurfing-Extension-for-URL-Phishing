@@ -47,6 +47,14 @@ python back-end/server.py
 ```
 Catatan: Opsi LLM juga bisa diatur dari Extension Options (frontend akan mengirim flag ke `/analyze_page`).
 
+## Opsional: Unicode confusable detection
+Backend memiliki dukungan opsional untuk mendeteksi huruf mirip (homoglyph) lintas skrip. Aktifkan dengan memasang dependensi berikut:
+
+```powershell
+pip install confusable-homoglyphs==3.3.1
+```
+Jika tidak dipasang, backend tetap berjalan dan menggunakan heuristik campuran-skrip bawaan.
+
 ## Endpoint API
 - GET `/health` → `{ ok, threshold, features }`
 - GET `/version` → `{ model, features, threshold, explain }`
@@ -74,7 +82,8 @@ Catatan: Opsi LLM juga bisa diatur dari Extension Options (frontend akan mengiri
    - Mode: Balanced / Strict / Relaxed
    - Fast fallback, Highlight/Block risky links
    - Allowlist (satu domain per baris)
-   - LLM (enable, only external, max links)
+  - LLM (enable, only external, max links)
+  - Family/Kids Mode (lebih ketat)
 
 File penting frontend:
 - `front-end/manifest.json` (MV3)
@@ -91,6 +100,8 @@ File penting frontend:
 - Deteksi shortener (t.ly, rebrand.ly, bit.ly, dll) dan banner heuristik.
 - Highlight/Block klik berisiko (opsional), notifikasi, Details page, Copy/Export.
 - LLM opsional untuk alasan berbasis konteks halaman.
+ - Family/Kids Mode (opsional) untuk heuristik lebih ketat.
+ - Deteksi punycode, lookalike brand sederhana, dan Unicode confusable (opsional bila memasang `confusable-homoglyphs`).
 
 ## Packaging untuk Chrome Web Store
 - Zip isi folder `front-end/` (jangan zip folder induk).

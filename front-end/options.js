@@ -13,9 +13,10 @@
   const llmModel = document.getElementById('llmModel');
   const llmOnlyExternal = document.getElementById('llmOnlyExternal');
   const llmMax = document.getElementById('llmMax');
+  const kidsMode = document.getElementById('kidsMode');
 
   function load() {
-  chrome.storage.sync.get({ apiBase: '', mode: 'balanced', fastOnSlow: true, highlightRisky: true, blockRisky: false, allowlist: [], llmEnabled: false, llmModel: 'llama3.1:8b', llmOnlyExternal: false, llmMax: 10 }, (cfg) => {
+  chrome.storage.sync.get({ apiBase: '', mode: 'balanced', fastOnSlow: true, highlightRisky: true, blockRisky: false, allowlist: [], llmEnabled: false, llmModel: 'llama3.1:8b', llmOnlyExternal: false, llmMax: 10, kidsMode: false }, (cfg) => {
       apiBase.value = cfg.apiBase || '';
       mode.value = cfg.mode || 'balanced';
       fastOnSlow.checked = !!cfg.fastOnSlow;
@@ -26,13 +27,14 @@
       llmModel.value = cfg.llmModel || 'llama3.1:8b';
   llmOnlyExternal.checked = !!cfg.llmOnlyExternal;
   llmMax.value = cfg.llmMax ?? 10;
+      kidsMode.checked = !!cfg.kidsMode;
     });
   }
 
   function save() {
     const value = apiBase.value.trim();
   const domains = allowlist.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-  const cfg = { apiBase: value, mode: mode.value, fastOnSlow: !!fastOnSlow.checked, highlightRisky: !!highlightRisky.checked, blockRisky: !!blockRisky.checked, allowlist: domains, llmEnabled: !!llmEnabled.checked, llmModel: llmModel.value.trim() || 'llama3.1:8b', llmOnlyExternal: !!llmOnlyExternal.checked, llmMax: Math.max(0, parseInt(llmMax.value || '10', 10)) };
+  const cfg = { apiBase: value, mode: mode.value, fastOnSlow: !!fastOnSlow.checked, highlightRisky: !!highlightRisky.checked, blockRisky: !!blockRisky.checked, allowlist: domains, llmEnabled: !!llmEnabled.checked, llmModel: llmModel.value.trim() || 'llama3.1:8b', llmOnlyExternal: !!llmOnlyExternal.checked, llmMax: Math.max(0, parseInt(llmMax.value || '10', 10)), kidsMode: !!kidsMode.checked };
     chrome.storage.sync.set(cfg, () => {
       saveBtn.textContent = 'Saved';
       setTimeout(() => saveBtn.textContent = 'Save', 1200);
@@ -49,6 +51,7 @@
   allowlist.value = '';
   llmEnabled.checked = false;
   llmModel.value = 'llama3.1:8b';
+    kidsMode.checked = false;
     });
   }
 
