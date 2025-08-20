@@ -1,16 +1,22 @@
-# Exclude virtual environment directory
-myenv/
+# Python
+back-end/.venv/
+.venv/
 venv/
-
-# Exclude Python bytecode files
 __pycache__/
-
-# Exclude Jupyter notebook checkpoints
+*.pyc
 .ipynb_checkpoints/
+.env
+.env.*
 
-# Exclude local development settings (e.g., IDE-specific files)
+# Models & artifacts (pakai LFS jika perlu)
+*.joblib
+*.pickle
+*.model
+
+# OS/Editor
+.DS_Store
+Thumbs.db
 .vscode/
-.idea/
 
-# Exclude environment-specific files (e.g., .env, .env.local)
-.env*
+# Node (jika nanti ada)
+node_modules/

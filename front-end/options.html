@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GuardSurfing Options</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { max-width: 640px; margin: 32px auto; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .row { display:flex; gap:12px; align-items:center; margin-top:8px; }
+    label { width: 140px; font-weight: 600; }
+    input, select { flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
+    .actions { display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px; }
+    .btn { padding: 8px 12px; border: 1px solid var(--border); background: #fff; border-radius: 8px; cursor: pointer; }
+    .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand-600); }
+    .note { font-size: 12px; color: var(--muted); margin-top:6px; }
+  </style>
+</head>
+<body>
+  <h1>GuardSurfing Options</h1>
+  <div class="card">
+    <h2>Backend</h2>
+    <div class="row">
+      <label for="apiBase">API Base URL</label>
+      <input id="apiBase" type="url" placeholder="https://your-api.example.com" />
+    </div>
+    <div class="row">
+      <label></label>
+      <button id="checkBackend" class="btn">Check</button>
+    </div>
+    <div id="backendInfo" class="note">Must support /process and /analyze_page. Click Check to fetch /config.</div>
+  </div>
+
+  <div class="card">
+    <h2>Mode</h2>
+    <div class="row">
+      <label for="mode">Decision Mode</label>
+      <select id="mode">
+        <option value="balanced">Balanced</option>
+        <option value="strict">Strict</option>
+        <option value="relaxed">Relaxed</option>
+      </select>
+    </div>
+    <div class="note">Strict marks more URLs as phishing; Relaxed is more permissive.</div>
+  </div>
+
+  <div class="card">
+    <h2>Performance</h2>
+    <div class="row">
+      <label for="fastOnSlow">Fast fallback</label>
+      <input id="fastOnSlow" type="checkbox" />
+    </div>
+    <div class="note">If the full check is slow, automatically send a fast offline check and show its result first.</div>
+  </div>
+
+  <div class="card">
+    <h2>LLM (optional)</h2>
+    <div class="row">
+      <label for="llmEnabled">Enable LLM</label>
+      <input id="llmEnabled" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="llmOnlyExternal">Only external links</label>
+      <input id="llmOnlyExternal" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="llmModel">Model name</label>
+      <input id="llmModel" type="text" placeholder="llama3.1:8b" />
+    </div>
+    <div class="row">
+      <label for="llmMax">Max links</label>
+      <input id="llmMax" type="number" min="0" max="100" step="1" value="10" />
+    </div>
+    <div class="note">Uses local Ollama by default (backend). LLM may increase latency; keep off if not needed.</div>
+  </div>
+
+  <div class="card">
+    <h2>Page protection</h2>
+    <div class="row">
+      <label for="highlightRisky">Highlight risky links</label>
+      <input id="highlightRisky" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="blockRisky">Block risky link clicks</label>
+      <input id="blockRisky" type="checkbox" />
+    </div>
+    <div class="note">When enabled, pages will outline risky links and optionally block clicks unless you confirm.</div>
+  </div>
+
+  <div class="card">
+    <h2>Allowlist</h2>
+    <div class="row" style="align-items: flex-start;">
+      <label for="allowlist">Trusted domains</label>
+      <textarea id="allowlist" rows="6" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px; font-family: ui-monospace, monospace;"></textarea>
+    </div>
+    <div class="note">One domain per line (e.g., example.com). Subdomains are included.</div>
+  </div>
+
+  <div class="actions">
+    <button id="reset" class="btn">Reset</button>
+    <button id="save" class="btn primary">Save</button>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

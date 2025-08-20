@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GuardSurfing Details</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { max-width: 900px; margin: 24px auto; }
+    .toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+    .btn { padding:8px 10px; border:1px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid var(--border); padding:8px; text-align:left; }
+    th { background: var(--card); position: sticky; top: 0; }
+    .muted { color: var(--muted); }
+    .pill { padding:2px 6px; border-radius:999px; font-size:12px; }
+    .pill.red { background:#fee2e2; color:#991b1b; }
+  </style>
+</head>
+<body>
+  <h1>Flagged Links</h1>
+  <div class="toolbar">
+    <button id="refresh" class="btn">Refresh</button>
+    <button id="copy" class="btn">Copy</button>
+    <button id="export" class="btn">Export CSV</button>
+    <span id="status" class="muted"></span>
+  </div>
+  <div class="muted" id="page"></div>
+  <table id="table">
+    <thead>
+      <tr>
+        <th>Risk</th>
+        <th>Type</th>
+        <th>Host</th>
+        <th>URL</th>
+        <th>Reason</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="details.js"></script>
+</body>
+</html>

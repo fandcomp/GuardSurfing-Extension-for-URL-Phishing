@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GuardSurfing</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preload" href="logo.png" as="image" />
+    <meta name="color-scheme" content="light dark" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000 http://localhost:5000" />
+  
+</head>
+<body>
+    <div id="app" class="popup">
+        <header class="top">
+            <img class="brand" src="logo.png" alt="GuardSurfing" />
+            <div class="titles">
+                <h1>GuardSurfing</h1>
+                <span class="subtitle">Phishing Checker</span>
+            </div>
+            <button id="refresh-button" title="Refresh" class="icon-btn" aria-label="Refresh">⟳</button>
+        </header>
+
+        <main class="content">
+            <section id="loading" class="loading shown" aria-live="polite">
+                <div class="spinner"></div>
+                <p class="muted">Analyzing current page…</p>
+            </section>
+
+            <section id="result" class="result hidden">
+                <div class="status-row">
+                    <span id="status-pill" class="pill">Checking…</span>
+                <div class="reasons-box" id="page-scan" style="display:none;">
+                    <span class="label">Iklan/link eksternal berisiko</span>
+                    <div id="scan-summary" class="muted" style="margin-bottom:4px;"></div>
+                    <ul id="scan-items" class="reasons"></ul>
+                                        <div style="margin-top:6px; display:flex; justify-content:flex-end;">
+                                            <a id="view-details" class="link" href="details.html" target="_blank" rel="noreferrer" style="display:none;">Lihat semua »</a>
+                                        </div>
+                </div>
+                    <span class="muted">Risk <strong id="risk-num">0%</strong></span>
+                </div>
+
+                <div class="gauge" style="--p: 0">
+                    <div class="gauge-ring"></div>
+                    <div class="gauge-center">
+                        <div id="gauge-num" class="gauge-num">0%</div>
+                    </div>
+                </div>
+
+                <div class="url-box" title="Analyzed URL">
+                    <span class="label muted">URL</span>
+                    <div id="url-text" class="mono ellipsis"></div>
+                </div>
+
+                <div class="reasons-box">
+                    <span class="label muted">Reasons</span>
+                    <ul id="reasons" class="reasons"></ul>
+                </div>
+            </section>
+        </main>
+
+        <footer class="bottom">
+            <a class="link" href="mailto:h4f4nd1@gmail.com">Help</a>
+            <span class="sep">•</span>
+            <span class="version">v1.0</span>
+            <span class="sep">•</span>
+            <a id="open-options" class="link" href="#">Options</a>
+            <span class="sep">•</span>
+            <a class="link" href="details.html" target="_blank" rel="noreferrer">Details</a>
+        </footer>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+  
+</body>
+</html>
