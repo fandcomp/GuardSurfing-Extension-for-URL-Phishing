@@ -50,6 +50,7 @@
   const mapAreas = Array.from(document.querySelectorAll('map area[href]'));
   const frames = Array.from(document.querySelectorAll('iframe[src], frame[src]'));
   const banners = Array.from(document.querySelectorAll('[onclick], [data-href], [data-url], [data-link], [data-destination], [data-redirect], [role="banner"], .banner, [class*="ad"], [id*="banner"]'));
+  const forms = Array.from(document.querySelectorAll('form[action]'));
 
     const links = [];
     const origin = location.host;
@@ -124,6 +125,20 @@
       links.push({ url, tag: el.tagName.toLowerCase(), banner: true, external: isExternal, text, title, context: text });
     }
 
+    // Forms (submit targets). Useful to analyze exfiltration targets.
+    for (const f of forms) {
+      const act = f.getAttribute('action');
+      const method = (f.getAttribute('method') || 'get').toLowerCase();
+      const url = absUrl(act);
+      if (!isHttp(url)) continue;
+      const isExternal = (()=>{ try { return new URL(url).host !== origin; } catch { return false; } })();
+      // Detect presence of sensitive inputs
+      const sensitive = !!f.querySelector('input[type="password"], input[name*="pass" i], input[name*="card" i], input[name*="otp" i], input[name*="token" i], input[type="email"], input[name*="ssn" i]');
+      const title = (f.getAttribute('name') || f.getAttribute('id') || '').toString().slice(0,120);
+      const text = sensitive ? 'form:sensitive' : 'form';
+      links.push({ url, tag: 'form', banner: false, external: isExternal, text, title, context: method });
+    }
+
     // image map / banner images linked by parent anchors are covered via anchors
     return links;
   }
@@ -180,6 +195,25 @@
       }
     }, true);
   }
+
+  // Form Guard: warn on external sensitive form submissions
+  document.addEventListener('submit', (e) => {
+    try {
+      const f = e.target.closest('form');
+      if (!f || !lastAnalysis) return;
+      const act = f.getAttribute('action');
+      let url = absUrl(act);
+      if (!isHttp(url)) return;
+      const item = (lastAnalysis.items || []).find(x => x.url === url) || {};
+      const sensitive = !!f.querySelector('input[type="password"], input[name*="pass" i], input[name*="card" i], input[name*="otp" i], input[name*="token" i], input[type="email"], input[name*="ssn" i]');
+      const isExternal = (()=>{ try { return new URL(url).host !== location.host; } catch { return false; } })();
+      if (sensitive && (item.prediction === -1 || (item.risk||0) >= 35 || isExternal)) {
+        e.preventDefault();
+        const proceed = confirm('Form ini tampak sensitif dan akan dikirim ke domain eksternal. Lanjutkan submit?');
+        if (proceed) f.submit();
+      }
+    } catch {}
+  }, true);
 
   // Initial and on dynamic changes
   sendLinks();

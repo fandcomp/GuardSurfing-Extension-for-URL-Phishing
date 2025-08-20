@@ -470,6 +470,21 @@ def analyze_page():
                 ext = urlparse(u).netloc != origin and urlparse(u).netloc != ''
             except Exception:
                 ext = False
+            # Brand/text-domain mismatch heuristic: if text/title/context mentions a different domain than the href host
+            mentioned_host = None
+            try:
+                host = urlparse(u).netloc.lower()
+            except Exception:
+                host = ''
+            text_blob = ' '.join(filter(None, [it.get('text') or '', it.get('title') or '', it.get('context') or '']))
+            dom_re = re.compile(r"\b([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b", re.I)
+            m = dom_re.search(text_blob)
+            if m:
+                mentioned_host = m.group(0).lower()
+            brand_mismatch = False
+            if mentioned_host and host and mentioned_host not in host and host not in mentioned_host:
+                brand_mismatch = True
+
             results.append({
                 'url': u,
                 'prediction': int(pred),
@@ -481,6 +496,7 @@ def analyze_page():
                 'text': it.get('text') or '',
                 'title': it.get('title') or '',
                 'context': it.get('context') or '',
+                'brand_mismatch': brand_mismatch,
                 'reasons': reasons,
                 'explanation': { 'top': exp.get('top', []) }
             })
@@ -550,6 +566,16 @@ def analyze_page():
         LLM_FLAG_MIN = 0.6
         for r in results:
             # promote to flagged if heuristics suggest high risk
+            # Apply small risk boost for brand/text-domain mismatch on external links
+            try:
+                if r.get('external') and r.get('brand_mismatch'):
+                    r['risk'] = min(100, r.get('risk', 0) + 12)
+                    rs = r.get('reasons') or []
+                    if len(rs) < 5:
+                        rs.append('Teks/judul menyebut domain lain')
+                        r['reasons'] = rs
+            except Exception:
+                pass
             if r.get('prediction', 1) != -1:
                 if r.get('banner') and (r.get('external') or r.get('shortener')) and r.get('risk', 0) >= BANNER_FLAG_MIN:
                     r['prediction'] = -1
