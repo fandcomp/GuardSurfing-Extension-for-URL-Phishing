@@ -2,6 +2,7 @@
 (function(){
   let settings = { highlightRisky: true, blockRisky: false };
   let lastAnalysis = null;
+  let tooltipEl = null;
 
   chrome.storage?.sync?.get({ highlightRisky: true, blockRisky: false }, (cfg) => { settings = cfg; });
   chrome.storage?.onChanged?.addListener((changes, area) => {
@@ -165,7 +166,8 @@
   function applyHighlights() {
     if (!settings.highlightRisky || !lastAnalysis) return;
     const risky = new Set((lastAnalysis.items || []).filter(x => x.prediction === -1).map(x => x.url));
-    document.querySelectorAll('a[href], iframe[src], frame[src], map area[href], [onclick], [data-href], [data-url], [data-link], [data-destination], [data-redirect]').forEach(el => {
+    const sel = 'a[href], iframe[src], frame[src], map area[href], [onclick], [data-href], [data-url], [data-link], [data-destination], [data-redirect]';
+    document.querySelectorAll(sel).forEach(el => {
       let url = el.getAttribute('href') || el.getAttribute('src');
       if (!url) {
         const oc = el.getAttribute && el.getAttribute('onclick');
@@ -176,8 +178,74 @@
       if (risky.has(url)) {
         el.style.outline = '2px solid #dc2626';
         el.style.outlineOffset = '2px';
+        // Tooltip hover
+        el.addEventListener('mouseenter', (e) => showTooltipFor(url, el, e));
+        el.addEventListener('mouseleave', hideTooltip);
       }
     });
+  }
+
+  function ensureTooltip() {
+    if (tooltipEl) return tooltipEl;
+    const tip = document.createElement('div');
+    tip.style.position = 'fixed';
+    tip.style.zIndex = '2147483647';
+    tip.style.background = 'rgba(17,24,39,0.98)';
+    tip.style.color = '#fff';
+    tip.style.padding = '8px 10px';
+    tip.style.borderRadius = '8px';
+    tip.style.boxShadow = '0 6px 18px rgba(0,0,0,0.25)';
+    tip.style.font = '12px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell';
+    tip.style.maxWidth = '320px';
+    tip.style.pointerEvents = 'none';
+    tip.style.display = 'none';
+    document.documentElement.appendChild(tip);
+    tooltipEl = tip;
+    return tip;
+  }
+
+  function showTooltipFor(url, el, evt) {
+    try {
+      const tip = ensureTooltip();
+      const item = (lastAnalysis.items || []).find(x => x.url === url);
+      if (!item) return;
+      const reasons = (item.reasons || []).slice(0, 3).join(' • ');
+      const risk = item.risk != null ? `Risk ${item.risk}%` : '';
+      const llm = item.llm_reason ? ` — ${item.llm_reason}` : '';
+      const cat = item.category ? ` [${item.category}]` : '';
+      tip.textContent = `${risk}${cat}${reasons ? ' — ' + reasons : ''}${llm}`.trim();
+      positionTooltip(evt.clientX, evt.clientY);
+      tip.style.display = 'block';
+      // track mouse move while inside
+      const move = (e) => positionTooltip(e.clientX, e.clientY);
+      el.addEventListener('mousemove', move);
+      el._gs_move = move;
+    } catch {}
+  }
+
+  function positionTooltip(x, y) {
+    const tip = ensureTooltip();
+    const margin = 12;
+    const vw = window.innerWidth; const vh = window.innerHeight;
+    let left = x + margin; let top = y + margin;
+    tip.style.display = 'block';
+    const rect = tip.getBoundingClientRect();
+    if (left + rect.width > vw - 8) left = x - rect.width - margin;
+    if (top + rect.height > vh - 8) top = y - rect.height - margin;
+    tip.style.left = `${Math.max(8, left)}px`;
+    tip.style.top = `${Math.max(8, top)}px`;
+  }
+
+  function hideTooltip(e) {
+    try {
+      const tip = ensureTooltip();
+      tip.style.display = 'none';
+      const el = e && e.target;
+      if (el && el._gs_move) {
+        el.removeEventListener('mousemove', el._gs_move);
+        delete el._gs_move;
+      }
+    } catch {}
   }
 
   function installClickBlocker() {

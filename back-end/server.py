@@ -11,12 +11,19 @@ from typing import Optional, Tuple, List, Dict
 from urllib.parse import urlparse
 import json
 import os
+import unicodedata
 import requests
 
 try:
     import xgboost as xgb  # optional, used for fast SHAP contributions
 except Exception:  # pragma: no cover
     xgb = None
+
+# Optional homoglyph detection (if available)
+try:
+    from confusable_homoglyphs import confusables as ch_conf  # type: ignore  # noqa: F401
+except Exception:  # pragma: no cover
+    ch_conf = None  # type: ignore
 
 app = Flask(__name__)
 CORS(app)
@@ -298,6 +305,41 @@ def looks_like_brand(s: str, brand: str) -> bool:
     if i < len(s1) or j < len(b0):
         mism += 1
     return mism <= 1
+
+
+def has_mixed_confusable_scripts(host: str) -> bool:
+    try:
+        if not host:
+            return False
+        scripts = set()
+        for ch in host:
+            if ord(ch) < 128:
+                scripts.add('LATIN')
+                continue
+            try:
+                name = unicodedata.name(ch)
+            except Exception:
+                continue
+            if 'CYRILLIC' in name:
+                scripts.add('CYRILLIC')
+            elif 'GREEK' in name:
+                scripts.add('GREEK')
+            elif 'LATIN' in name:
+                scripts.add('LATIN')
+        # Mixed scripts beyond LATIN only
+        return len(scripts - {'LATIN'}) >= 1 and 'LATIN' in scripts
+    except Exception:
+        return False
+
+
+def is_confusable_brand(sld_host: str, brand: str) -> bool:
+    try:
+        if not sld_host or not brand or ch_conf is None:
+            return False
+        # Library may raise if tables missing; guard it
+        return bool(ch_conf.is_confusable(sld_host, brand))
+    except Exception:
+        return False
 
 
 BRAND_KEYWORDS = [
@@ -661,6 +703,26 @@ def analyze_page():
                         rs.append(f'Domain menyerupai brand “{b}”')
                         r['reasons'] = rs
                         break
+                else:
+                    # If not matched above, try deeper homoglyph check when lib is available
+                    for b in BRAND_KEYWORDS:
+                        if b in txt and is_confusable_brand(sld_host, b):
+                            r['risk'] = min(100, r.get('risk', 0) + 18)
+                            rs = r.get('reasons') or []
+                            rs.append(f'Homoglyph mirip brand “{b}”')
+                            r['reasons'] = rs
+                            break
+                # Mixed-script hostname is suspicious
+                try:
+                    host_full = urlparse(r.get('url','')).netloc
+                except Exception:
+                    host_full = ''
+                if has_mixed_confusable_scripts(host_full):
+                    r['risk'] = min(100, r.get('risk', 0) + 8)
+                    rs = r.get('reasons') or []
+                    if 'Campuran script (homoglyph)' not in rs:
+                        rs.append('Campuran script (homoglyph)')
+                        r['reasons'] = rs
                 cat = r.get('category')
                 if cat:
                     boost = 10 if cat in ('gift-scam','gaming-freebies') else 15
@@ -744,6 +806,7 @@ def config():
         'llm_model': LLM_MODEL,
         'ollama_url': OLLAMA_URL,
         'llm_timeout': LLM_TIMEOUT,
+        'homoglyph_lib': bool(ch_conf is not None),
         'version': 1,
     })
 
