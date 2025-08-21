@@ -159,7 +159,10 @@
   function sendLinks() {
     try {
       const links = dedupe(collectLinks());
-      chrome.runtime.sendMessage({ type: 'PAGE_LINKS', page: location.href, links });
+      // Best-effort top page URL for grouping iframes under the main page
+      let topPage = location.href;
+      try { if (window.top && window.top !== window) topPage = document.referrer || topPage; } catch {}
+      chrome.runtime.sendMessage({ type: 'PAGE_LINKS', page: location.href, topPage, links });
     } catch {}
   }
 

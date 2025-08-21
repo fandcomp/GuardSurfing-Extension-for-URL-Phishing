@@ -12,8 +12,10 @@
   "notifications"
   ],
   "host_permissions": [
-    "http://127.0.0.1:5000/*",
-    "http://localhost:5000/*"
+  "http://127.0.0.1:5000/*",
+  "http://localhost:5000/*",
+  "http://*/*",
+  "https://*/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://* http://127.0.0.1:5000 http://localhost:5000"
@@ -23,9 +25,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["page_scanner.js"],
-      "run_at": "document_idle"
+  "matches": ["<all_urls>"],
+  "js": ["page_scanner.js"],
+  "run_at": "document_idle",
+  "all_frames": true,
+  "match_about_blank": true
     }
   ],
   "options_ui": {

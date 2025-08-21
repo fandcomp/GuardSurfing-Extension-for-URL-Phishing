@@ -113,15 +113,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg?.type === 'PAGE_LINKS') {
-    // content script sent links; cache and debounce auto-analysis
-    pageScanCache.set(msg.page, { ts: Date.now(), links: msg.links });
-    const old = analyzeTimers.get(msg.page);
+    // content script sent links; aggregate by topPage when available (frames)
+    const topPage = msg.topPage || msg.page;
+    const entry = pageScanCache.get(topPage) || { ts: 0, links: [] };
+    const merged = [...(entry.links || []), ...(msg.links || [])];
+    // de-duplicate by URL
+    const seen = new Set();
+    const uniq = [];
+    for (const it of merged) { if (it && it.url && !seen.has(it.url)) { seen.add(it.url); uniq.push(it); } }
+    pageScanCache.set(topPage, { ts: Date.now(), links: uniq });
+    const old = analyzeTimers.get(topPage);
     if (old) clearTimeout(old);
     const t = setTimeout(() => {
-      analyzePageNow(msg.page, msg.links);
-      analyzeTimers.delete(msg.page);
+      analyzePageNow(topPage, uniq);
+      analyzeTimers.delete(topPage);
     }, 1200);
-    analyzeTimers.set(msg.page, t);
+    analyzeTimers.set(topPage, t);
     sendResponse({ ok: true });
     return true;
   }
